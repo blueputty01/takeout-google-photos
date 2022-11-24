@@ -4,11 +4,25 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-import pywintypes, win32file, win32con
+import pywintypes
+import win32file
+import win32con
+from tkinter import filedialog
+from tkinter import *
 
-input_dir = Path('D:\\Desktop\\photos - Copy\\Extract\\Takeout\\Google Photos')
+root = Tk()
+root.withdraw()
+# input_dir = filedialog.askdirectory()
+# output_dir = filedialog.askdirectory()
 
-output_dir = Path('D:\\Desktop\\output')
+input_dir = 'D:\\Desktop\\Takeout\\Takeout\\Google Photos'
+output_dir = 'D:\\Desktop\\Photos'
+
+# input_dir = input("Input directory: ")
+# output_dir = input("Output directory: ")
+
+input_dir = Path(input_dir)
+output_dir = Path(output_dir)
 
 
 def changeFileCreationTime(fname, newtime):
@@ -35,8 +49,9 @@ for img in input_dir.glob('**/*'):
 
         error_count = -1
 
-        base = img.name[:46]
-        base = base.replace('-edited', '')
+        # base = img.name[:46]
+        base = img.name
+        base = re.sub('-edit(ed|e|)', '', base)
 
         dupe_count = dupe_exp.search(base)
         if dupe_count:
@@ -50,6 +65,17 @@ for img in input_dir.glob('**/*'):
             meta_name = base.replace('.MP4', '.jpg') + '.json'
 
         meta_path = str(img.parent / meta_name)
+
+        if not os.path.exists(meta_path):
+            print("No metadata found for " + img_path)
+            move_dir = output_dir / 'unorganized'
+
+            if not os.path.exists(move_dir):
+                os.makedirs(move_dir)
+
+            shutil.move(img_path, move_dir)
+
+            continue
 
         with open(meta_path) as f:
             data = json.load(f)
