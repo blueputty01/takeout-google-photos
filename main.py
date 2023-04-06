@@ -25,7 +25,7 @@ input_dir = Path(input_dir)
 output_dir = Path(output_dir)
 
 
-def changeFileCreationTime(fname, newtime):
+def change_file_creation_time(fname, newtime):
     wintime = pywintypes.Time(newtime)
     winfile = win32file.CreateFile(
         fname, win32con.GENERIC_WRITE,
@@ -40,33 +40,39 @@ def changeFileCreationTime(fname, newtime):
 
 dupe_exp = re.compile(r'\(\d+\)')
 
+# create a map of names to their file names
+meta_map = {}
+
+
+def get_root(file):
+    file_name = file.name
+    dupe_count = dupe_exp.search(file_name)
+    if dupe_count:
+        dupe_count = dupe_count.group(0)
+        file_name = file_name.replace(dupe_count, '') 
+    else: 
+        dupe_count = ''
+    root_name = file_name.split('.')[0].split('-edit')[0]
+    root_name = root_name + dupe_count
+    return root_name
+
+
+for meta_file in input_dir.glob('**/*.json'):
+    meta_root = get_root(meta_file)
+    meta_map[meta_root] = meta_file
+
+
 for img in input_dir.glob('**/*'):
     if img.is_file() and not img.suffix == '.json':
-        if img.suffix == "":
-            continue
-
         img_path = str(img)
 
         error_count = -1
 
         # base = img.name[:46]
-        base = img.name
-        base = re.sub('-edit(ed|e|)', '', base)
-
-        dupe_count = dupe_exp.search(base)
-        if dupe_count:
-            dupe_count = dupe_count.group(0)
-            base = base.replace(dupe_count, '')
-            base += dupe_count
-
-        meta_name = base + '.json'
-
-        if not os.path.exists(img.parent / meta_name):
-            meta_name = base.replace('.MP4', '.jpg') + '.json'
-
-        meta_path = str(img.parent / meta_name)
-
-        if not os.path.exists(meta_path):
+        img_root = get_root(img)
+        try: 
+            meta_path = meta_map[img_root]
+        except KeyError as e:
             print("No metadata found for " + img_path)
             move_dir = output_dir / 'unorganized'
 
@@ -81,11 +87,11 @@ for img in input_dir.glob('**/*'):
             data = json.load(f)
             if 'photoTakenTime' in data:
                 creation_time = int(data['photoTakenTime']['timestamp'])
-                changeFileCreationTime(img_path, creation_time)
+                change_file_creation_time(img_path, creation_time)
                 os.utime(img_path, (creation_time, creation_time))
-                print(meta_name, creation_time)
 
             date = datetime.fromtimestamp(creation_time)
+            print(img_root, date)
             month = date.month
             year = date.year
 
@@ -93,5 +99,10 @@ for img in input_dir.glob('**/*'):
 
             if not os.path.exists(month_dir):
                 os.makedirs(month_dir)
-
-            shutil.move(img_path, month_dir)
+            while(os.path.exists(month_dir / img.name)):
+                error_count += 1
+                new_name = img.name + f'({error_count})'
+                new_path = month_dir / new_name
+                print(img_path + " already exists in " + str(month_dir))
+            
+            shutil.move(img_path, new_path)
